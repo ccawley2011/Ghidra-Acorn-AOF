@@ -73,15 +73,31 @@ public class AIFLoader extends AbstractLibrarySupportLoader {
 		BinaryReader reader = new BinaryReader(provider, true);
 		FlatProgramAPI fpa = new FlatProgramAPI(program, monitor);
 		header = new AIFHeader(reader);
+		long position = 0;
+
+		createSegment(fpa, provider.getInputStream(position), "Header", header.getBase() + position, 0x80, true, false, true, log);
+		createData(program, fpa, header.toDataType(), header.getBase() + 0x14, -1, log);
+		position += 0x80;
 
 		// TODO: Support non-executable AIFs
-		createSegment(fpa, provider.getInputStream(0), "Header", header.getBase(), 0x44, true, false, true, log);
-		createSegment(fpa, provider.getInputStream(0x44), "ZeroInit", header.getBase() + 0x44, 0x3C, true, false, true, log);
-		createSegment(fpa, provider.getInputStream(0x80), "ReadOnly", header.getBase() + 0x80, header.getReadOnlySize() - 0x80, true, false, true, log);
-		// TODO: Create ReadWrite segment
-		// TODO: Create DebugArea segment?
+		if (header.getReadOnlySize() > position) {
+			createSegment(fpa, provider.getInputStream(position), "ReadOnly", header.getBase() + position, header.getReadOnlySize() - position, true, false, true, log);
+			position += header.getReadOnlySize() - position;
+		}
 
-		createData(program, fpa, header.toDataType(), header.getBase() + 0x14, -1, log);
+		if (header.getReadWriteSize() > 0) {
+			createSegment(fpa, provider.getInputStream(position), "ReadWrite", header.getBase() + position, header.getReadWriteSize(), true, true, true, log);
+			position += header.getReadWriteSize();
+		}
+
+		if (header.getDebugSize() > 0) {
+			// TODO: Create DebugArea segment?
+			position += header.getDebugSize();
+		}
+
+		if (header.getZeroInitSize() > 0) {
+			createSegment(fpa, provider.getInputStream(position), "ZeroInit", header.getBase() + position, header.getZeroInitSize(), true, true, false, log);
+		}
 	}
 
 	private void createSegment(FlatProgramAPI fpa, InputStream stream, String name, long address, long size,
